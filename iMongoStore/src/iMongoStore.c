@@ -36,7 +36,7 @@ struct t_bitarray{
 };
 
 
-#define PATH_CONFIG "/home/utnso/tp-2021-1c-Cebollitas-subcampeon/iMongoStore/config/mongoStore.config"
+#define PATH_CONFIG "/home/utnso/iMongoStore/iMongoStore/config/mongoStore.config"
 #define PATH_CONEXION "/home/utnso/tp-2021-1c-Cebollitas-subcampeon/libCompartida/config/conexiones.config"
 
 int main(void) {
@@ -64,7 +64,6 @@ int main(void) {
 	tamanio_bloque = config_get_int_value(mongoStore_config, "BLOCK_SIZE");
 	tiempoSincro = config_get_int_value(mongoStore_config, "TIEMPO_SINCRONIZACION");
 
-	inicializar_carpetas();
 
 	//Inicializamos el File System, consultamos si ya existen los archivos o no
 	char* ruta_superbloque = string_new();
@@ -74,13 +73,12 @@ int main(void) {
 	string_append(&ruta_superbloque, "/Superbloque/Superbloque.ims");
 	string_append(&ruta_blocks, "/Blocks/Blocks.ims");
 
-	//if(!verificar_existencia(ruta_blocks) && !verificar_existencia(ruta_superbloque)){
+	if(verificar_existencia(ruta_blocks) == 0 && verificar_existencia(ruta_superbloque) == 0){
+		inicializar_carpetas();
 		crear_superbloque();
 		inicializar_bloques();
 		crear_archivo_files();
-	//}
-
-	agregarCaracter(200, 'B');
+	}
 
 	printf("Checkpoint 4");
 
@@ -98,10 +96,6 @@ int main(void) {
 //		pthread_t hilo;
 //		pthread_create(&hilo, NULL, (void* )atender_mensaje(cliente), NULL);
 //	}
-
-	log_destroy(logger);
-	config_destroy(mongoStore_config);
-	config_destroy(conexion_config);
 	return EXIT_SUCCESS;
 }
 
@@ -215,16 +209,18 @@ void inicializar_bloques(){
 //SINCRONIZACION ==> Chequear!
 //	while(1){
 //		sleep(tiempoSincro);
+//		pthread_mutex_lock(&mutexEscrituraBloques);
 //		memcpy(block,copiaBlock,res);
+//		pthread_mutex_unlock(&mutexEscrituraBloques);
 //
 //		int resultadoSincro = msync(block, res, MS_SYNC);
 //
 //		if(resultadoSincro == -1){
-//			printf("fallo en la sincronizacion\n");
+//			log_error(logger, "Fallo en la sincronizacion con el bloque");
 //		}
 //		else
 //		{
-//			printf("se realizo una sincronizacion exitosa\n");
+//			log_error(logger, "Sincronizacion exitosa con el bloque");
 //		}
 //	}
 
@@ -278,8 +274,7 @@ void eliminarCaracter(int cantidad, char caracter){
 void eliminarEnBloque(int cantidad, char caracter, char* rutita){
 	//Misma logica para cuando escribimos en el bloque
 
-	t_config *config_agregar_caracter = leer_config(PATH_CONFIG);
-	bloquesDelSistema = config_get_int_value(&config_agregar_caracter,"BLOCKS");
+	bloquesDelSistema = bloques;
 
 	//Se llama config_o2 porque originalmente estaba para Oxigeno.ims, pero ahora es global (el nombre no importa)
 	//Para obtener la data directamente del metadata, hacemos:
@@ -303,48 +298,56 @@ void eliminarEnBloque(int cantidad, char caracter, char* rutita){
 
 	if(cantBloques <= 0){
 		log_error(logger, "El recurso todavia no se genero!");
+		printf("No se genero el recurso!");
 		return;
 
 		//Si tiene 0 bloques ==> No esta ocupando ningun bloque ==> No tiene sentido consumir algo que no existe
 	}
 	else
 	{
+		char** bloquesNuevosPostBorrado = string_new();
+		string_append(&bloquesNuevosPostBorrado, "[");
+
 		//Lo empezas a recorrer desde el final del bitmap
 		for(int i = bloquesDelSistema; i > 0; i--){
 			if((bitarray_test_bit(bitmap, i) == 1 && cantidad >= 0)){ //En 1, el bloque esta ocupado
+				char bloqueAChequear = string_itoa(i);
 
-				if(existeEnArray(bloquesUsados, string_itoa(i))){
+				if(existeEnArray(bloquesUsados, &bloqueAChequear) == 1 && cantBloquesActualizacion > 0){
 					bloqueAUsar = i;
 					char bloque_a_eliminar = string_itoa(i);
 
 					if(cantidad >= tamanio_bloque){
-						while(cantidad < tamanio_bloque){
+						while(cantidad >= tamanio_bloque){
 							pthread_mutex_lock(&mutexEscrituraBloques);
-							memcpy(copiaBlock + (bloqueAUsar * tamanio_bloque) + (cantidadDeCaracteresRestantes % tamanio_bloque), "W", sizeof(char));
+							memcpy(copiaBlock + (bloqueAUsar * tamanio_bloque) + (cantidadDeCaracteresRestantes % tamanio_bloque), "", sizeof(char));
 							//Escribo "W" porque el SIZE del Blocks.ims debe permanecer constante (un tamanio fijo) ==> Escribo un caracter random
 							pthread_mutex_unlock(&mutexEscrituraBloques);
 
 							cantidad--;
 							cantidadDeCaracteresRestantes--;
-							cantBloquesActualizacion--;
 						}
 
 						bitarray_set_bit(bitmap, 0);
 						msync(bitmap -> bitarray, tamanioBitmap, MS_SYNC);
+						cantBloquesActualizacion--;
+
+						//Creo el nuevo array, deshaciendome del bloque
+
 
 					}
-					else
+					else if(cantBloquesActualizacion > 0)
 					{
+						//Si entra al else, significa que en el bloque no esta lleno de caracteres de ese recurso
 						bloqueAUsar = i;
 
 						while(cantidad == 0){
 							pthread_mutex_lock(&mutexEscrituraBloques);
-							memcpy(copiaBlock + (bloqueAUsar * tamanio_bloque) + (cantidadDeCaracteresRestantes % tamanio_bloque), "W", sizeof(char));
+							memcpy(copiaBlock + (bloqueAUsar * tamanio_bloque) + (cantidadDeCaracteresRestantes % tamanio_bloque), "", sizeof(char));
 							pthread_mutex_unlock(&mutexEscrituraBloques);
 
 							cantidad--;
 							cantidadDeCaracteresRestantes--;
-							cantBloquesActualizacion--;
 						}
 					}
 
@@ -397,24 +400,22 @@ void eliminarEnBloque(int cantidad, char caracter, char* rutita){
 }
 
 
-bool existeEnArray(char** array, char contenido){
-	bool existe = false;
+int existeEnArray(char** array, char contenido){
+	int existe = 0;
 	for(int i = 0; i < sizeof(array); i++){
-		if(array[i] == contenido){
-			existe = true;
+		if(string_contains(array, contenido)){
+			existe = 1;
 		}
 	}
 	return existe;
 }
 
-
-void* escribirEnBloque(int cantidad, char caracter, char* rutita){
-	t_config *config_agregar_caracter = leer_config(PATH_CONFIG);
+void escribirEnBloque(int cantidad, char caracter, char* rutita){
 	bloquesDelSistema = bloques;
 
 	//Se llama config_o2 porque originalmente estaba para Oxigeno.ims, pero ahora es global (el nombre no importa)
 	//Para obtener la data directamente del metadata, hacemos:
-	t_config* config_o2 = leer_config(rutita);
+	t_config* config_o2 = config_create(rutita);
 	int cantidadDeCaracteresEscritas = config_get_int_value(config_o2, "SIZE");
 
 	//La info sobre los bloques llenados con ese caracter la averiguas con bloquesUsados
@@ -435,13 +436,14 @@ void* escribirEnBloque(int cantidad, char caracter, char* rutita){
 	//Por ende, tenes que buscar el proximo bloque libre ==> no hay bloques en uso
 	if(cantBloques == 0){
 		for(int i = 0; i < bloquesDelSistema; i++){
-			if((bitarray_test_bit(bitmap,i) == 0) && cantidad > 0){ //Pregunta si el bloque esta libre (0 == libre)
+			if((bitarray_test_bit(bitmap, i) == 0) && cantidad > 0){ //Pregunta si el bloque esta libre (0 == libre)
 
 				bloqueAUsar = i;
 				cantBloquesActualizacion++; //Suma la cantidad de bloques ocupado por el caracter/recurso
 				char* bloque_nuevo = string_itoa(i); //Para agregarlo en el metadata con los bloques que usas
+				cantidadEscrita = 0;
 
-				if(cantBloquesActualizacion==1){ //Empezas a armar el string que contiene la lista de los bloques
+				if(cantBloquesActualizacion==1){ //Empezas a armar el string que contiene la lista de los bloques NUEVOS!
 					string_append(&actualizar_bloques, bloque_nuevo);	//Ej: [1,3,4] ==> Son los bloques
 				}
 				else	//Los agregas con la coma
@@ -451,12 +453,13 @@ void* escribirEnBloque(int cantidad, char caracter, char* rutita){
 				}
 				//Agregas un bloque por ciclo de for!
 
-				bitarray_set_bit(bitmap, 1); //Seteas que el bloque esta ocupado
+				bitarray_set_bit(bitmap, i); //Seteas que el bloque esta ocupado
 				msync(&bitmap -> bitarray, tamanioBitmap, MS_SYNC);
 
 				//Empezas a escribir en el bitmap hasta llenar ese bloque o hasta que no tengas mas caracteres
 				//Se escribe un caracter por ciclo de while!
-				while(cantidad > 0 && cantidadEscrita <= tamanio_bloque){
+				while(cantidad > 0 && cantidadEscrita < tamanio_bloque){
+
 					//ESCRIBO EN EL BLOQUE DEL BITMAP
 					pthread_mutex_lock(&mutexEscrituraBloques);
 					memcpy(copiaBlock + bloqueAUsar * tamanio_bloque + (cantidadDeCaracteresEscritas % tamanio_bloque), &caracter, sizeof(char));
@@ -468,6 +471,7 @@ void* escribirEnBloque(int cantidad, char caracter, char* rutita){
 					cantidadEscrita++;
 					cantidad--;
 					cantidadDeCaracteresEscritas++;
+
 				}
 			}
 		}
@@ -494,7 +498,7 @@ void* escribirEnBloque(int cantidad, char caracter, char* rutita){
 						string_append(&actualizar_bloques, bloqueNuevo); //Agrega el bloque seguido de una "," al array a
 						//reemplazar el que esta en el metadata
 						cantBloquesActualizacion++;
-						bitarray_set_bit(bitmap, 1);
+						bitarray_set_bit(bitmap, i);
 						msync(&bitmap -> bitarray, tamanioBitmap, MS_SYNC);
 						i = bloquesDelSistema;
 					}
@@ -503,8 +507,6 @@ void* escribirEnBloque(int cantidad, char caracter, char* rutita){
 			pthread_mutex_lock(&mutexEscrituraBloques);
 			memcpy(copiaBlock + (bloqueAUsar * tamanio_bloque) + (cantidadDeCaracteresEscritas % tamanio_bloque), &caracter, sizeof(char));
 			pthread_mutex_unlock(&mutexEscrituraBloques);
-			cantidadEscrita++;
-			cantidad--;
 			cantidadDeCaracteresEscritas++;
 
 		}
@@ -531,14 +533,14 @@ void* escribirEnBloque(int cantidad, char caracter, char* rutita){
 		string_append(&actualizarBloques, actualizar_bloques);
 		string_append(&actualizarBloques, "]");
 
-		//Actualizamos metadata
+		//Actualizamos metadata o la bitacora
 		actualizar_metadata(actualizarBloques, actualizarSize, actualizarCantidad, rutita);
+
+
 }
 
 
 void generar_bitacora(int idTripulante){
-	t_config *config_agregar_caracter = leer_config(PATH_CONFIG);
-	bloquesDelSistema = config_get_int_value(&config_agregar_caracter,"BLOCKS");
 
 	char* id_trip = string_itoa(idTripulante);
 	char* ruta_bitacora = string_new();
@@ -547,19 +549,25 @@ void generar_bitacora(int idTripulante){
 	string_append(&ruta_bitacora, id_trip);
 	string_append(&ruta_bitacora, ".ims");
 
-	if(!verificar_existencia(ruta_bitacora)){
-		FILE* archivo = fopen(ruta_bitacora, "w");
-			t_config* config_bitacora = leer_config(ruta_bitacora);
+	FILE* metadata_fd = fopen(ruta_metadata, "rb");
 
-			config_set_value(config_bitacora, "SIZE", string_itoa(0));
-			config_set_value(config_bitacora, "BLOCKS", "[]");
-			config_set_value(config_bitacora, "BLOCK_COUNT", string_itoa(0));
-	}
-	else
-	{
-		printf(strcat(id_trip, "Ya existe la bitacora del tripulante: "));
+	if (verificar_existencia(ruta_bitacora) == 1) {
+		fclose(metadata_fd);
+		printf("Existe esa bitacora!");
+		log_info(logger, "Bitacora encontrada");
+		return;
 	}
 
+	metadata_fd = fopen(ruta_metadata, "w");
+	t_config* bitacora_config = malloc(sizeof(t_config));
+	bitacora_config->path = ruta_metadata;
+	bitacora_config->properties = dictionary_create();
+
+	dictionary_put(bitacora_config->properties, "SIZE", string_itoa(0));
+	dictionary_put(bitacora_config->properties, "BLOCK_COUNT", string_itoa(0));
+	dictionary_put(bitacora_config->properties, "BLOCKS", "[]");
+
+	config_save(bitacora_config);
 }
 
 
@@ -571,11 +579,17 @@ void escribir_en_bitacora(int idTripulante, char* texto){
 	string_append(&ruta_bitacora, id_trip);
 	string_append(&ruta_bitacora, ".ims");
 
-	if(!verificar_existencia(ruta_bitacora)){
+	if(verificar_existencia(ruta_bitacora) == 1){
 		int longitud = strlen(texto);
-		for(int i = 0; i <= longitud; i++){
+		//Escribe en la bitacora!
+		for (int i = 0; i < longitud; i++){
 			escribirEnBloque(longitud, texto[i], ruta_bitacora);
 		}
+	}
+	else
+	{
+		printf("No existe esa bitacora!");
+		log_error(logger, "No existe esa bitacora!");
 	}
 }
 
@@ -591,8 +605,6 @@ void crear_metadata_oxigeno(){
 }
 
 void agregar_datos_metadata(char* archivo, char* valor){
-	log_info(logger, "Buscando Filesystem existente");
-
 	char* ruta_metadata = string_new();
 	string_append(&ruta_metadata, punto_montaje);
 	string_append(&ruta_metadata, "/Files/");
@@ -601,13 +613,13 @@ void agregar_datos_metadata(char* archivo, char* valor){
 
 	FILE* metadata_fd = fopen(ruta_metadata, "rb");
 
-	if (metadata_fd != NULL) {
+	if (verificar_existencia(ruta_metadata) == 1) {
 		fclose(metadata_fd);
-			log_info(logger, "Metadata encontrada");
+		printf("Esa metadata ya existe!");
+		log_info(logger, "Metadata encontrada");
 		return;
-
 	}
-	log_info(logger, "No encontrado, creando");
+
 	metadata_fd = fopen(ruta_metadata, "w");
 	t_config* metadata_config = malloc(sizeof(t_config));
 	metadata_config->path = ruta_metadata;
@@ -624,7 +636,6 @@ void agregar_datos_metadata(char* archivo, char* valor){
 }
 
 void actualizar_metadata(char* valorBlocks, char* valorSize, char* valorBlockCount, char* ruta){
-	FILE* metadata_fd = fopen(ruta, "w");
 	t_config* metadata_config = malloc(sizeof(t_config));
 	metadata_config->path = ruta;
 	metadata_config->properties = dictionary_create();
@@ -647,12 +658,15 @@ void crear_metadata_comida(){
 }
 
 int verificar_existencia(char* nombre_archivo){
-	FILE *file;
-	if(file = fopen(nombre_archivo, "r")){
-		fclose(nombre_archivo);
+	struct stat buffer;
+	int existe = stat(nombre_archivo, &buffer);
+	if(existe == 1){
 		return 1;
 	}
-	return 0;
+	else
+	{
+		return 0;
+	}
 }
 
 void agregarCaracter(int cantidad, char caracter){
@@ -707,7 +721,7 @@ t_log* iniciar_logger(char* logger_path){
 	return logger;
 }
 
-t_config *leer_config(char* config_path){
+t_config* leer_config(char* config_path){
 	t_config* config;
 	if((config = config_create(config_path)) == NULL){
 		printf("No se pudo leer la config");
