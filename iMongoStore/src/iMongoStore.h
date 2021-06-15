@@ -127,10 +127,10 @@ void inicializar_bloques();
 void generar_bitacora(int idTripulante);
 void* atender_mensaje(int cliente);
 void agregarCaracter(int cantidad, char caracter);
-void* escribirEnBloque(int cantidad, char caracter, char* rutita);
+void escribirEnBloque(int cantidad, char caracter, char* rutita);
 void actualizar_metadata(char* valorBlocks, char* valorSize, char* valorBlockCount, char* ruta);
 void eliminarCaracter(int cantidad, char caracter);
 void eliminarEnBloque(int cantidad, char caracter, char* rutita);
-bool existeEnArray(char** array, char contenido);
+int existeEnArray(char** array, char contenido);
 
 #endif /* IMONGOSTORE_H_ */
