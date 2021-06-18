@@ -36,7 +36,7 @@ struct t_bitarray{
 };
 
 
-#define PATH_CONFIG "/home/utnso/iMongoStore/iMongoStore/config/mongoStore.config"
+#define PATH_CONFIG "/home/utnso/iMongoStore/iMongoStore/iMongoStore/config/mongoStore.config"
 #define PATH_CONEXION "/home/utnso/tp-2021-1c-Cebollitas-subcampeon/libCompartida/config/conexiones.config"
 
 int main(void) {
@@ -73,6 +73,7 @@ int main(void) {
 	string_append(&ruta_superbloque, "/Superbloque/Superbloque.ims");
 	string_append(&ruta_blocks, "/Blocks/Blocks.ims");
 
+	//Inicializamos File System
 	if(verificar_existencia(ruta_blocks) == 0 && verificar_existencia(ruta_superbloque) == 0){
 		inicializar_carpetas();
 		crear_superbloque();
@@ -285,13 +286,17 @@ void eliminarEnBloque(int cantidad, char caracter, char* rutita){
 	char** bloquesUsados = config_get_array_value(config_o2, "BLOCKS");
 	int cantBloques = config_get_int_value(config_o2, "BLOCK_COUNT");
 
-	//El bloque donde vas a escribir
-	int bloqueAUsar;
+//	//El bloque donde vas a escribir
+//	int bloqueAUsar;
+
 	//La cantidad de bloques nuevos asociados al caracter
 	int cantBloquesActualizacion = cantBloques;
 
-	//Para hacer un nuevo string con los bloques nuevos del caracter
-	char* actualizar_bloques = string_new();
+	//Un contador con la cantidad de bloques que se desocuparon
+	int contadorBloquesDesocupados = 0;
+
+	char* bloquesNuevosPostBorrado = string_new();
+	string_append(&bloquesNuevosPostBorrado, "[");
 
 	//Si es 0, sugnifica que el caracter no tiene bloques asignados en el Blocks.ims
 	//Por ende, tenes que buscar el proximo bloque libre ==> no hay bloques en uso
@@ -305,24 +310,20 @@ void eliminarEnBloque(int cantidad, char caracter, char* rutita){
 	}
 	else
 	{
-		char** bloquesNuevosPostBorrado = string_new();
-		string_append(&bloquesNuevosPostBorrado, "[");
-
 		//Lo empezas a recorrer desde el final del bitmap
 		for(int i = bloquesDelSistema; i > 0; i--){
 			if((bitarray_test_bit(bitmap, i) == 1 && cantidad >= 0)){ //En 1, el bloque esta ocupado
-				char bloqueAChequear = string_itoa(i);
+				char* bloqueAChequear = string_itoa(i);
 
-				if(existeEnArray(bloquesUsados, &bloqueAChequear) == 1 && cantBloquesActualizacion > 0){
-					bloqueAUsar = i;
-					char bloque_a_eliminar = string_itoa(i);
+				if(existeEnArray(bloquesUsados, *bloqueAChequear) == 1 && cantBloquesActualizacion > 0){
+//					bloqueAUsar = i;
 
 					if(cantidad >= tamanio_bloque){
 						while(cantidad >= tamanio_bloque){
-							pthread_mutex_lock(&mutexEscrituraBloques);
-							memcpy(copiaBlock + (bloqueAUsar * tamanio_bloque) + (cantidadDeCaracteresRestantes % tamanio_bloque), "", sizeof(char));
-							//Escribo "W" porque el SIZE del Blocks.ims debe permanecer constante (un tamanio fijo) ==> Escribo un caracter random
-							pthread_mutex_unlock(&mutexEscrituraBloques);
+//							pthread_mutex_lock(&mutexEscrituraBloques);
+//							memcpy(copiaBlock + (bloqueAUsar * tamanio_bloque) + (cantidadDeCaracteresRestantes % tamanio_bloque), "", sizeof(char));
+//							//Escribo "W" porque el SIZE del Blocks.ims debe permanecer constante (un tamanio fijo) ==> Escribo un caracter random
+//							pthread_mutex_unlock(&mutexEscrituraBloques);
 
 							cantidad--;
 							cantidadDeCaracteresRestantes--;
@@ -331,6 +332,7 @@ void eliminarEnBloque(int cantidad, char caracter, char* rutita){
 						bitarray_set_bit(bitmap, 0);
 						msync(bitmap -> bitarray, tamanioBitmap, MS_SYNC);
 						cantBloquesActualizacion--;
+						contadorBloquesDesocupados++;
 
 						//Creo el nuevo array, deshaciendome del bloque
 
@@ -339,71 +341,68 @@ void eliminarEnBloque(int cantidad, char caracter, char* rutita){
 					else if(cantBloquesActualizacion > 0)
 					{
 						//Si entra al else, significa que en el bloque no esta lleno de caracteres de ese recurso
-						bloqueAUsar = i;
+//						bloqueAUsar = i;
 
 						while(cantidad == 0){
-							pthread_mutex_lock(&mutexEscrituraBloques);
-							memcpy(copiaBlock + (bloqueAUsar * tamanio_bloque) + (cantidadDeCaracteresRestantes % tamanio_bloque), "", sizeof(char));
-							pthread_mutex_unlock(&mutexEscrituraBloques);
+//							pthread_mutex_lock(&mutexEscrituraBloques);
+//							memcpy(copiaBlock + (bloqueAUsar * tamanio_bloque) + (cantidadDeCaracteresRestantes % tamanio_bloque), "", sizeof(char));
+//							pthread_mutex_unlock(&mutexEscrituraBloques);
 
 							cantidad--;
 							cantidadDeCaracteresRestantes--;
 						}
 					}
-
-					//Armado del array con los nuevos bloques
-
-
-//					if(cantBloquesActualizacion==0){ //Empezas a armar el string que contiene la lista de los bloques
-//						string_append(&actualizar_bloques, "");	//Ej: [1,3,4] ==> Son los bloques
-//					}
-//					else if(cantBloquesActualizacion == 1)	//Los agregas con la coma
-//					{
-//						string_append(&actualizar_bloques, bloque_a_eliminar);
-//					}
-//					else
-//					{
-//						string_append(&actualizar_bloques, ",");
-//						string_append(&actualizar_bloques, bloque_a_eliminar); //VERIFICAR LOGICA
-//					}
 				}
 			}
+		}//Fin de for
+
+		//Generamos la lista (o el string) que va a contener los bloques todavia ocupados
+		char* bloquesTodaviaOcupados = string_new();
+		string_append(&bloquesTodaviaOcupados, "[");
+
+		//Armado del array con los bloques todavia ocupados
+		if(contadorBloquesDesocupados == 0){ //No se desocupo ningun bloque
+			char* primeraPosicion = string_itoa(*bloquesUsados[0]);
+			string_append(&bloquesNuevosPostBorrado, primeraPosicion);
+
+			//Se manda la lista original
+			for(int j = 1; j < cantBloques - 1; j++){
+				string_append(&bloquesNuevosPostBorrado, ",");
+				string_append(&bloquesNuevosPostBorrado, bloquesUsados[j]);
+			}
+			string_append(&bloquesNuevosPostBorrado, "]");
 		}
-		//Actualizas el metadata
-		char* actualizarCantidad = string_itoa(cantBloquesActualizacion);
-		char* actualizarBloques = string_new();
-		char* actualizarSize = string_itoa(cantidadDeCaracteresRestantes);
+		else if(contadorBloquesDesocupados == cantBloques){ //Se desocuparon todos los bloques ocupados por el recurso
+			string_append(&bloquesNuevosPostBorrado, "]");
+		}
+		else
+		{//Se desocuparon algunos bloques ==> lo concatenamos con el string de los bloques todavia ocupados
 
-		string_append(&actualizarBloques, "[");
-//		for(int i = 0; i < cantBloques; i++){
-//			if(i==0){
-//				string_append(&actualizarBloques, bloquesUsados[i]);
-//			}
-//			else
-//			{
-//				string_append(&actualizarBloques, ",");
-//				string_append(&actualizarBloques, bloquesUsados[i]);
-//			}
-//		}
-//
-//		string_append(&actualizarBloques, actualizar_bloques);
-//		string_append(&actualizarBloques, "]");
+			for(int i = 0; i < cantBloques - contadorBloquesDesocupados; i++){
+				//Llenamos el string bloquesTodaviaOcupados con los bloques sin desocupar
+			}
+			string_append(&bloquesNuevosPostBorrado, bloquesTodaviaOcupados);
+			string_append(&bloquesNuevosPostBorrado, "]");
+		}
 
-		config_set_value(config_o2, "BLOCKS", actualizarBloques);
-		config_set_value(config_o2, "BLOCK_COUNT", actualizarCantidad);
-		config_set_value(config_o2, "SIZE", actualizarSize);
-		config_save(config_o2);
+	} //Fin del if
 
-		log_info(logger, "Ya se consumieron todos los recursos posibles");
-	}
+	//Actualizas el metadata
+	char* actualizarCantidad = string_itoa(cantBloquesActualizacion);
+	char* actualizarSize = string_itoa(cantidadDeCaracteresRestantes);
 
+	actualizar_metadata(bloquesNuevosPostBorrado, actualizarSize, actualizarCantidad, rutita);
+
+	config_save(config_o2);
+
+	log_info(logger, "Ya se consumieron todos los recursos posibles");
 }
 
 
 int existeEnArray(char** array, char contenido){
 	int existe = 0;
 	for(int i = 0; i < sizeof(array); i++){
-		if(string_contains(array, contenido)){
+		if(array[i] == string_itoa(contenido)){
 			existe = 1;
 		}
 	}
