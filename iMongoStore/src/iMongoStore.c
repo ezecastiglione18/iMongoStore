@@ -36,7 +36,7 @@ struct t_bitarray{
 };
 
 
-#define PATH_CONFIG "/home/utnso/iMongoStore/iMongoStore/iMongoStore/config/mongoStore.config"
+#define PATH_CONFIG "/home/utnso/iMongoStore/iMongoStore/config/mongoStore.config"
 #define PATH_CONEXION "/home/utnso/tp-2021-1c-Cebollitas-subcampeon/libCompartida/config/conexiones.config"
 
 int main(void) {
@@ -80,6 +80,8 @@ int main(void) {
 		inicializar_bloques();
 		crear_archivo_files();
 	}
+
+	agregarCaracter(3, 'o');
 
 	printf("Checkpoint 4");
 
@@ -534,8 +536,6 @@ void escribirEnBloque(int cantidad, char caracter, char* rutita){
 
 		//Actualizamos metadata o la bitacora
 		actualizar_metadata(actualizarBloques, actualizarSize, actualizarCantidad, rutita);
-
-
 }
 
 
@@ -657,15 +657,14 @@ void crear_metadata_comida(){
 }
 
 int verificar_existencia(char* nombre_archivo){
-	struct stat buffer;
-	int existe = stat(nombre_archivo, &buffer);
-	if(existe == 1){
-		return 1;
+	FILE* file;
+	int retorno = 0;
+
+	if((file = fopen(nombre_archivo, "r"))){
+		retorno = 1;
+		fclose(file);
 	}
-	else
-	{
-		return 0;
-	}
+	return retorno;
 }
 
 void agregarCaracter(int cantidad, char caracter){
