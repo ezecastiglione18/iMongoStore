@@ -85,7 +85,8 @@ int main(void) {
 
 	printf("Checkpoint 4\n");
 	agregarCaracter(6,'B');
-	agregarCaracter(12000, 'o');
+	//agregarCaracter(12000, 'o');
+	eliminarCaracter(128,'o');
 	generar_bitacora(7);
 	escribir_en_bitacora(7,"HOLA GIL");
 
@@ -121,6 +122,10 @@ void* atender_mensaje(int cliente){
 int string_to_int(char* palabra)
 {
 	int ret;
+	if(strlen(palabra)==3)
+	{
+		ret= (palabra[0]-'0')*100+(palabra[1]-'0')*10+palabra[2]-'0';
+	}
 	if(strlen(palabra)==2)
 	{
 		 ret= (palabra[0]-'0')*10+palabra[1]-'0';
@@ -309,10 +314,10 @@ void eliminarEnBloque(int cantidad, char caracter, char* rutita){
 //	int bloqueAUsar;
 
 	//La cantidad de bloques nuevos asociados al caracter
-	int cantBloquesActualizacion = cantBloques;
+	//int cantBloquesActualizacion = cantBloques;
 
 	//Un contador con la cantidad de bloques que se desocuparon
-	int contadorBloquesDesocupados = 0;
+	//int contadorBloquesDesocupados = 0;
 
 	char* bloquesNuevosPostBorrado = string_new();
 	string_append(&bloquesNuevosPostBorrado, "[");
@@ -335,116 +340,69 @@ void eliminarEnBloque(int cantidad, char caracter, char* rutita){
 	 * sino limpio el bloque del bitmap y decremento la cantidad de bloques  y me fijo restando el tamaño del bloque si tengo que restar mas
 	 * la parte del seteo todo en el config te lo dejo a vos
 	 *
+	 **/
 	int cantidad_a_borrar=cantidad;
 	if(cantidadDeCaracteresRestantes%tamanio_bloque!=0)
 	{
 		cantidad_a_borrar-=cantidadDeCaracteresRestantes%tamanio_bloque;
-		while(cantidad_a_borrar >= 0)
+		while(cantidad_a_borrar >= 0 && cantBloques>0)
 		{
-			int bloque_a_eliminar=string_to_int(bloquesUsados[cantBloques--]);
+			printf("%s",bloquesUsados[cantBloques-1]);
+			int bloque_a_eliminar=string_to_int(bloquesUsados[cantBloques-1]);
 			bitarray_clean_bit(bitmap,bloque_a_eliminar);
-			bloquesUsados--;
-			cantidad_a_borrar-=tamanio_bloque;
+			msync(bitmap -> bitarray, tamanioBitmap, MS_SYNC);
+			cantBloques=cantBloques-1;
+			cantidad_a_borrar=cantidad_a_borrar-tamanio_bloque;
 		}
 	}
 	else
 	{
 		cantidad_a_borrar-=tamanio_bloque;
-		while(cantidad_a_borrar >= 0)
+		while(cantidad_a_borrar >= 0 && cantBloques>0)
 		{
 			int bloque_a_eliminar=string_to_int(bloquesUsados[cantBloques--]);
 			bitarray_clean_bit(bitmap,bloque_a_eliminar);
-			bloquesUsados--;
+			cantBloques--;
 			cantidad_a_borrar-=tamanio_bloque;
 		}
 	}
-	*/
-	else
-	{
-		//Lo empezas a recorrer desde el final del bitmap
-		for(int i = bloquesDelSistema; i > 0; i--){
-			if((bitarray_test_bit(bitmap, i) == 1 && cantidad >= 0)){ //En 1, el bloque esta ocupado
-				char* bloqueAChequear = string_itoa(i);
-
-				if(existeEnArray(bloquesUsados, *bloqueAChequear) == 1 && cantBloquesActualizacion > 0){
-//					bloqueAUsar = i;
-
-					if(cantidad >= tamanio_bloque){
-						while(cantidad >= tamanio_bloque){
-//							pthread_mutex_lock(&mutexEscrituraBloques);
-//							memcpy(copiaBlock + (bloqueAUsar * tamanio_bloque) + (cantidadDeCaracteresRestantes % tamanio_bloque), "", sizeof(char));
-//							//Escribo "W" porque el SIZE del Blocks.ims debe permanecer constante (un tamanio fijo) ==> Escribo un caracter random
-//							pthread_mutex_unlock(&mutexEscrituraBloques);
-
-							cantidad--;
-							cantidadDeCaracteresRestantes--;
-						}
-
-						bitarray_set_bit(bitmap, 0);
-						msync(bitmap -> bitarray, tamanioBitmap, MS_SYNC);
-						cantBloquesActualizacion--;
-						contadorBloquesDesocupados++;
-
-						//Creo el nuevo array, deshaciendome del bloque
 
 
-					}
-					else if(cantBloquesActualizacion > 0)
-					{
-						//Si entra al else, significa que en el bloque no esta lleno de caracteres de ese recurso
-//						bloqueAUsar = i;
-
-						while(cantidad == 0){
-//							pthread_mutex_lock(&mutexEscrituraBloques);
-//							memcpy(copiaBlock + (bloqueAUsar * tamanio_bloque) + (cantidadDeCaracteresRestantes % tamanio_bloque), "", sizeof(char));
-//							pthread_mutex_unlock(&mutexEscrituraBloques);
-
-							cantidad--;
-							cantidadDeCaracteresRestantes--;
-						}
-					}
-				}
-			}
-		}//Fin de for
 
 		//Generamos la lista (o el string) que va a contener los bloques todavia ocupados
 		char* bloquesTodaviaOcupados = string_new();
 		string_append(&bloquesTodaviaOcupados, "[");
 
 		//Armado del array con los bloques todavia ocupados
-		if(contadorBloquesDesocupados == 0){ //No se desocupo ningun bloque
-			char* primeraPosicion = string_itoa(*bloquesUsados[0]);
-			string_append(&bloquesNuevosPostBorrado, primeraPosicion);
 
-			//Se manda la lista original
-			for(int j = 1; j < cantBloques - 1; j++){
+			//Se manda la lista con los bloques que quedaron
+			for(int j = 0; j < cantBloques - 1; j++){
 				string_append(&bloquesNuevosPostBorrado, ",");
 				string_append(&bloquesNuevosPostBorrado, bloquesUsados[j]);
 			}
 			string_append(&bloquesNuevosPostBorrado, "]");
-		}
-		else if(contadorBloquesDesocupados == cantBloques){ //Se desocuparon todos los bloques ocupados por el recurso
-			string_append(&bloquesNuevosPostBorrado, "]");
-		}
-		else
-		{//Se desocuparon algunos bloques ==> lo concatenamos con el string de los bloques todavia ocupados
 
-			for(int i = 0; i < cantBloques - contadorBloquesDesocupados; i++){
-				//Llenamos el string bloquesTodaviaOcupados con los bloques sin desocupar
-			}
-			string_append(&bloquesNuevosPostBorrado, bloquesTodaviaOcupados);
-			string_append(&bloquesNuevosPostBorrado, "]");
-		}
 
-	} //Fin del if
-
+	char* actualizarCantidad;
+	char* actualizarSize;
+	cantidadDeCaracteresRestantes = cantidadDeCaracteresRestantes-cantidad;
 	//Actualizas el metadata
-	char* actualizarCantidad = string_itoa(cantBloquesActualizacion);
-	char* actualizarSize = string_itoa(cantidadDeCaracteresRestantes);
+	if(cantidadDeCaracteresRestantes>0)
+	{
+		 actualizarCantidad = string_itoa(cantBloques);
+		 actualizarSize = string_itoa(cantidadDeCaracteresRestantes);
+
+	}
+	else
+	{
+		 actualizarCantidad = "0";
+		 actualizarSize = "0";
+	}
+
 
 	actualizar_metadata(bloquesNuevosPostBorrado, actualizarSize, actualizarCantidad, rutita);
 
-	config_save(config_o2);
+	//config_save(config_o2);
 
 	log_info(logger, "Ya se consumieron todos los recursos posibles");
 }
