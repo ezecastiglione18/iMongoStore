@@ -36,7 +36,7 @@ struct t_bitarray{
 };
 
 
-#define PATH_CONFIG "/home/utnso/iMongoStore/iMongoStore/config/mongoStore.config"
+#define PATH_CONFIG "/home/utnso/iMongoStore2/config/mongoStore.config"
 #define PATH_CONEXION "/home/utnso/tp-2021-1c-Cebollitas-subcampeon/libCompartida/config/conexiones.config"
 
 int main(void) {
@@ -80,15 +80,15 @@ int main(void) {
 		inicializar_bloques();
 		crear_archivo_files();
 	}
-
-	agregarCaracter(3, 'o');
-
-	printf("Checkpoint 4\n");
-	agregarCaracter(6,'B');
-	//agregarCaracter(12000, 'o');
-	eliminarCaracter(128,'o');
-	generar_bitacora(7);
-	escribir_en_bitacora(7,"HOLA GIL");
+////	Operaciones de prueba que andan
+//	agregarCaracter(3, 'o');
+//
+//	printf("Checkpoint 4\n");
+//	agregarCaracter(6,'B');
+//	agregarCaracter(12000, 'o');
+//	eliminarCaracter(128,'o');
+//	generar_bitacora(7);
+//	escribir_en_bitacora(7,"HOLA GIL");
 
 	puts("CUMBIA 420 PA LO NEGRO\n");
 	//Para el manejo de mensajes:
@@ -271,12 +271,16 @@ void eliminarCaracter(int cantidad, char caracter){
 
 		case 'B':
 			string_append(&rutita, "/Files/Basura.ims");
-			eliminarEnBloque(cantidad, caracter, rutita);
+			t_config* config_o2 = leer_config(rutita);
+			int cantidadDeCaracteresRestantes = config_get_int_value(config_o2, "SIZE");
+			eliminarEnBloque(cantidadDeCaracteresRestantes, caracter, rutita);
 			break;
 
 		case 'b':
 			string_append(&rutita, "/Files/Basura.ims");
-			eliminarEnBloque(cantidad, 'B', rutita);
+			t_config* config_o22 = leer_config(rutita);
+			int cantidadDeCaracteresRestantess = config_get_int_value(config_o22, "SIZE");
+			eliminarEnBloque(cantidadDeCaracteresRestantess, 'B', rutita);
 			break;
 
 		case 'C':
@@ -293,6 +297,8 @@ void eliminarCaracter(int cantidad, char caracter){
 			printf("No se selecciono un caracter correcto");
 			break;
 	}
+
+	free(rutita);
 }
 
 
@@ -309,6 +315,8 @@ void eliminarEnBloque(int cantidad, char caracter, char* rutita){
 	//La info sobre los bloques llenados con ese caracter la averiguas con bloquesUsados
 	char** bloquesUsados = config_get_array_value(config_o2, "BLOCKS");
 	int cantBloques = config_get_int_value(config_o2, "BLOCK_COUNT");
+
+	char* caracterLlenado = config_get_string_value(config_o2, "CARACTER_LLENADO");
 
 //	//El bloque donde vas a escribir
 //	int bloqueAUsar;
@@ -369,18 +377,24 @@ void eliminarEnBloque(int cantidad, char caracter, char* rutita){
 
 
 
-		//Generamos la lista (o el string) que va a contener los bloques todavia ocupados
-		char* bloquesTodaviaOcupados = string_new();
-		string_append(&bloquesTodaviaOcupados, "[");
+	//Generamos la lista (o el string) que va a contener los bloques todavia ocupados
+	char* bloquesTodaviaOcupados = string_new();
+	string_append(&bloquesTodaviaOcupados, "[");
 
-		//Armado del array con los bloques todavia ocupados
+	//Armado del array con los bloques todavia ocupados
 
-			//Se manda la lista con los bloques que quedaron
-			for(int j = 0; j < cantBloques - 1; j++){
-				string_append(&bloquesNuevosPostBorrado, ",");
-				string_append(&bloquesNuevosPostBorrado, bloquesUsados[j]);
-			}
-			string_append(&bloquesNuevosPostBorrado, "]");
+	//Se manda la lista con los bloques que quedaron
+	for(int j = 0; j < cantBloques - 1; j++){
+		if(j == 0){
+			string_append(&bloquesNuevosPostBorrado, bloquesUsados[j]);
+		}
+		else
+		{
+			string_append(&bloquesNuevosPostBorrado, ",");
+			string_append(&bloquesNuevosPostBorrado, bloquesUsados[j]);
+		}
+	}
+	string_append(&bloquesNuevosPostBorrado, "]");
 
 
 	char* actualizarCantidad;
@@ -400,7 +414,7 @@ void eliminarEnBloque(int cantidad, char caracter, char* rutita){
 	}
 
 
-	actualizar_metadata(bloquesNuevosPostBorrado, actualizarSize, actualizarCantidad, rutita);
+	actualizar_metadata(bloquesNuevosPostBorrado, actualizarSize, actualizarCantidad, rutita, caracterLlenado);
 
 	//config_save(config_o2);
 
@@ -429,6 +443,11 @@ void escribirEnBloque(int cantidad, char caracter, char* rutita){
 	//La info sobre los bloques llenados con ese caracter la averiguas con bloquesUsados
 	char** bloquesUsados = config_get_array_value(config_o2, "BLOCKS");
 	int cantBloques = config_get_int_value(config_o2, "BLOCK_COUNT");
+
+	char* caracterLlenado;
+	if(esMetadataRecurso(rutita)){
+		caracterLlenado = config_get_string_value(config_o2, "CARACTER_LLENADO");
+	}
 
 	//Cantidad de caracteres escritos
 	int cantidadEscrita = 0;
@@ -542,7 +561,14 @@ void escribirEnBloque(int cantidad, char caracter, char* rutita){
 		string_append(&actualizarBloques, "]");
 
 		//Actualizamos metadata o la bitacora
-		actualizar_metadata(actualizarBloques, actualizarSize, actualizarCantidad, rutita);
+		if(esMetadataRecurso(rutita)){
+			actualizar_metadata(actualizarBloques, actualizarSize, actualizarCantidad, rutita, caracterLlenado);
+		}
+		else
+		{
+			actualizar_bitacora(actualizarBloques, actualizarSize, actualizarCantidad, rutita);
+		}
+
 }
 
 
@@ -601,16 +627,12 @@ void escribir_en_bitacora(int idTripulante, char* texto){
 
 
 void crear_archivo_files(){
-	crear_metadata_basura();
-	crear_metadata_comida();
-	crear_metadata_oxigeno();
+	crear_metadata("Oxigeno", "O");
+	crear_metadata("Comida", "C");
+	crear_metadata("Basura", "B");
 }
 
-void crear_metadata_oxigeno(){
-	agregar_datos_metadata("Oxigeno", "O");
-}
-
-void agregar_datos_metadata(char* archivo, char* valor){
+void crear_metadata(char* archivo, char* valor){
 	char* ruta_metadata = string_new();
 	string_append(&ruta_metadata, punto_montaje);
 	string_append(&ruta_metadata, "/Files/");
@@ -641,7 +663,7 @@ void agregar_datos_metadata(char* archivo, char* valor){
 	config_save(metadata_config);
 }
 
-void actualizar_metadata(char* valorBlocks, char* valorSize, char* valorBlockCount, char* ruta){
+void actualizar_metadata(char* valorBlocks, char* valorSize, char* valorBlockCount, char* ruta, char* caracter){
 	t_config* metadata_config = malloc(sizeof(t_config));
 	metadata_config->path = ruta;
 	metadata_config->properties = dictionary_create();
@@ -649,18 +671,21 @@ void actualizar_metadata(char* valorBlocks, char* valorSize, char* valorBlockCou
 	dictionary_put(metadata_config->properties, "SIZE", valorSize);
 	dictionary_put(metadata_config->properties, "BLOCK_COUNT", valorBlockCount);
 	dictionary_put(metadata_config->properties, "BLOCKS", valorBlocks);
+	dictionary_put(metadata_config->properties, "CARACTER_LLENADO", caracter);
 
 	config_save(metadata_config);
 }
 
+void actualizar_bitacora(char* valorBlocks, char* valorSize, char* valorBlockCount, char* ruta){
+	t_config* bitacora_config = malloc(sizeof(t_config));
+	bitacora_config->path = ruta;
+	bitacora_config->properties = dictionary_create();
 
-void crear_metadata_basura(){
-	agregar_datos_metadata("Basura", "B");
+	dictionary_put(bitacora_config->properties, "SIZE", valorSize);
+	dictionary_put(bitacora_config->properties, "BLOCK_COUNT", valorBlockCount);
+	dictionary_put(bitacora_config->properties, "BLOCKS", valorBlocks);
 
-}
-
-void crear_metadata_comida(){
-	agregar_datos_metadata("Comida", "C");
+	config_save(bitacora_config);
 }
 
 int verificar_existencia(char* nombre_archivo){
@@ -715,6 +740,8 @@ void agregarCaracter(int cantidad, char caracter){
 			printf("No se selecciono un caracter correcto");
 			break;
 	}
+
+	free(rutita);
 }
 
 t_log* iniciar_logger(char* logger_path){

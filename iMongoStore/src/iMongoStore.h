@@ -112,10 +112,7 @@ pthread_mutex_t mutexEscrituraBloques;
 void inicializar_carpetas();
 void nueva_carpeta(char *nueva_carpeta);
 void crear_archivo_files();
-void crear_metadata_oxigeno();
-void crear_metadata_comida();
-void crear_metadata_basura();
-void agregar_datos_metadata(char* archivo, char* valor);
+void crear_metadata(char* archivo, char* valor);
 void nuevo_archivo_metadata(char* nuevo_archivo);
 void escribir_en_bitacora(int idTripulante, char* texto);
 void crear_superbloque();
@@ -128,9 +125,11 @@ void generar_bitacora(int idTripulante);
 void* atender_mensaje(int cliente);
 void agregarCaracter(int cantidad, char caracter);
 void escribirEnBloque(int cantidad, char caracter, char* rutita);
-void actualizar_metadata(char* valorBlocks, char* valorSize, char* valorBlockCount, char* ruta);
+void actualizar_metadata(char* valorBlocks, char* valorSize, char* valorBlockCount, char* ruta, char* caracter);
+void actualizar_bitacora(char* valorBlocks, char* valorSize, char* valorBlockCount, char* ruta);
 void eliminarCaracter(int cantidad, char caracter);
 void eliminarEnBloque(int cantidad, char caracter, char* rutita);
 int existeEnArray(char** array, char contenido);
+_Bool esMetadataRecurso(char* rutini);
 
 #endif /* IMONGOSTORE_H_ */
