@@ -11,6 +11,7 @@
 #include <commons/log.h>
 #include <commons/config.h>
 #include <commons/string.h>
+#include <commons/collections/list.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -85,6 +86,7 @@ typedef struct {
 t_config *mongoStore_config;
 t_config *conexion_config;
 t_log *logger;
+t_list* blocks_used;
 
 char* IP;
 char* logger_path_mongostore;

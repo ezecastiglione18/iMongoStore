@@ -23,19 +23,19 @@ endif
 # Add inputs and outputs from these tool invocations to the build variables 
 
 # All Target
-all: iMongoStore2
+all: iMongoStore
 
 # Tool invocations
-iMongoStore2: $(OBJS) $(USER_OBJS)
+iMongoStore: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: GCC C Linker'
-	gcc  -o "iMongoStore2" $(OBJS) $(USER_OBJS) $(LIBS)
+	gcc  -o "iMongoStore" $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) $(EXECUTABLES)$(OBJS)$(C_DEPS) iMongoStore2
+	-$(RM) $(EXECUTABLES)$(OBJS)$(C_DEPS) iMongoStore
 	-@echo ' '
 
 .PHONY: all clean dependents

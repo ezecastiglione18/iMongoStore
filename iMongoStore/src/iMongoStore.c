@@ -35,8 +35,193 @@ struct t_bitarray{
 	bit_numbering_t mode;
 };
 
+int string_to_int(char* palabra)
+{
+	int ret;
+	if(strlen(palabra)==3)
+	{
+		ret= (palabra[0]-'0')*100+(palabra[1]-'0')*10+palabra[2]-'0';
+	}
+	if(strlen(palabra)==2)
+	{
+		 ret= (palabra[0]-'0')*10+palabra[1]-'0';
+	}
+	else
+	{
+		ret=palabra[0]-'0';
+	}
+	return ret;
+}
+int caracteres_en_bloque(int bl)
+{
+	return 0;
+}
 
-#define PATH_CONFIG "/home/utnso/iMongoStore2/config/mongoStore.config"
+void validar_y_arreglar_file(char* rutinni)
+{
+	t_config* config_o2 = leer_config(rutinni);
+	int tamanoSize = config_get_int_value(config_o2, "SIZE");
+	char** bloquesOcupados = config_get_array_value(config_o2, "BLOCKS");
+	int countBloques = config_get_int_value(config_o2, "BLOCK_COUNT");
+	char* caracter =config_get_string_value(config_o2, "CARACTER");
+	int sizeCorrecto= (countBloques-1)*tamanio_bloque+caracteres_en_bloque(string_to_int(bloquesOcupados[countBloques-1]));
+	if(tamanoSize!=sizeCorrecto)
+	{
+		tamanoSize=sizeCorrecto;
+		char* bloquesBienOcupados=string_new();
+		string_append(&bloquesBienOcupados, "[");
+
+		//Armado del array con los bloques todavia ocupados
+
+			//Se manda la lista con los bloques que quedaron
+			for(int j = 0; j < (countBloques-1); j++){
+				if(j==0)
+				{
+				 string_append(&bloquesBienOcupados, bloquesOcupados[j]);
+				}
+				else
+				{
+				string_append(&bloquesBienOcupados, ",");
+				string_append(&bloquesBienOcupados, bloquesOcupados[j]);
+				}
+			}
+			string_append(&bloquesBienOcupados, "]");
+		actualizar_metadata(bloquesBienOcupados,string_itoa(tamanoSize),string_itoa(countBloques),rutinni,caracter);
+	}
+	int cantidadReal;
+	for(cantidadReal=0; bloquesOcupados[cantidadReal]!=NULL; cantidadReal++);
+	if(countBloques!=cantidadReal)
+	{
+		countBloques=cantidadReal;
+		char* bloquesBienOcupados=string_new();
+		string_append(&bloquesBienOcupados, "[");
+
+		//Armado del array con los bloques todavia ocupados
+
+			//Se manda la lista con los bloques que quedaron
+			for(int j = 0; j < (countBloques-1); j++){
+				if(j==0)
+				{
+				 string_append(&bloquesBienOcupados, bloquesOcupados[j]);
+				}
+				else
+				{
+				string_append(&bloquesBienOcupados, ",");
+				string_append(&bloquesBienOcupados, bloquesOcupados[j]);
+				}
+			}
+			string_append(&bloquesBienOcupados, "]");
+		actualizar_metadata(bloquesBienOcupados,string_itoa(tamanoSize),string_itoa(countBloques),rutinni,caracter);
+	}
+	int auxiliar=0;
+	while(bloquesOcupados[auxiliar]!=NULL)
+	{
+		int bloqueRecorrido= string_to_int(bloquesOcupados[auxiliar]);
+		if(bloqueRecorrido<0 || bloqueRecorrido>=bloques)
+		{
+			break;
+		}
+		auxiliar++;
+	}
+	if(auxiliar<countBloques)
+	{
+		int caracteres_a_rescribir=(countBloques-auxiliar-1)*tamanio_bloque+(tamanoSize%tamanio_bloque);
+		char* bloquesBienOcupados=string_new();
+		string_append(&bloquesBienOcupados, "[");
+
+		//Armado del array con los bloques todavia ocupados
+
+			//Se manda la lista con los bloques que quedaron
+			for(int j = 0; j < auxiliar; j++){
+				if(j==0)
+				{
+				 string_append(&bloquesBienOcupados, bloquesOcupados[j]);
+				}
+				else
+				{
+				string_append(&bloquesBienOcupados, ",");
+				string_append(&bloquesBienOcupados, bloquesOcupados[j]);
+				}
+			}
+			string_append(&bloquesBienOcupados, "]");
+			actualizar_metadata(bloquesBienOcupados,string_itoa(tamanoSize-caracteres_a_rescribir),string_itoa(auxiliar),rutinni,caracter);
+			escribirEnBloque(caracteres_a_rescribir,(char)caracter,rutinni);
+	}
+
+}
+void agregar_a_lista(char*ruta,t_list* blocks_used)
+{
+	t_config* obtener_blocks=leer_config(ruta);
+	char** bloquecitos=config_get_array_value(obtener_blocks,"BLOCKS");
+	for(int bloq=0;bloquecitos[bloq]!=NULL;bloq++)
+	{
+		list_add(blocks_used,(void*)string_to_int(bloquecitos[bloq]));
+	}
+}
+void agregar_blocks_bitacoras(t_list* blocks_used)
+{
+	char* ruta_bita=string_new();
+	string_append(&ruta_bita,"/Files/Bitacoras/Tripulante");
+	int tripulante=1;
+
+	while(verificar_existencia(ruta_bita)==1)
+	{
+		agregar_a_lista(ruta_bita,blocks_used);
+		tripulante++;
+		ruta_bita=string_substring_until(ruta_bita,strlen(punto_montaje)+strlen("/Files/Bitacoras/Tripulante"));
+		string_append(&ruta_bita,string_itoa(tripulante));
+		string_append(&ruta_bita,".ims");
+	}
+
+}
+void agregar_blocks_recursos(t_list* blocks_used)
+{
+	char* ruta_oxigeno="";
+	string_append(&ruta_oxigeno,punto_montaje);
+	string_append(&ruta_oxigeno,"/Files/Oxigeno.ims");
+	agregar_a_lista(ruta_oxigeno,blocks_used);
+	char* ruta_basura="";
+	string_append(&ruta_basura,punto_montaje);
+	string_append(&ruta_basura,"/Files/Basura.ims");
+	agregar_a_lista(ruta_basura,blocks_used);
+	char* ruta_comida="";
+	string_append(&ruta_comida,punto_montaje);
+	string_append(&ruta_comida,"/Files/Comida.ims");
+	agregar_a_lista(ruta_comida,blocks_used);
+
+
+}
+
+_Bool esElMsmoBit(int t, int b)
+{
+	return t==b;
+}
+void arreglar_bitMap()
+{
+	list_create(blocks_used);
+	agregar_blocks_bitacoras(blocks_used);
+	agregar_blocks_recursos(blocks_used);
+	int bit_a_comparar;
+	_Bool mismoBit(void* elemento)
+	{
+		return esElMsmoBit(bit_a_comparar,(int)elemento);
+	}
+	for(int bit=0; bit<bitmap->size;bit++)
+	{
+		bit_a_comparar=bit;
+		if(list_find(blocks_used,mismoBit)!=0)
+		{
+			bitarray_set_bit(bitmap,bit);
+		}
+		else
+		{
+			bitarray_clean_bit(bitmap,bit);
+		}
+	}
+
+	list_destroy(blocks_used);
+}
+#define PATH_CONFIG "/home/utnso/iMongoStore/iMongoStore/config/mongoStore.config"
 #define PATH_CONEXION "/home/utnso/tp-2021-1c-Cebollitas-subcampeon/libCompartida/config/conexiones.config"
 
 int main(void) {
@@ -81,14 +266,14 @@ int main(void) {
 		crear_archivo_files();
 	}
 ////	Operaciones de prueba que andan
-//	agregarCaracter(3, 'o');
+	agregarCaracter(3, 'o');
 //
-//	printf("Checkpoint 4\n");
-//	agregarCaracter(6,'B');
-//	agregarCaracter(12000, 'o');
-//	eliminarCaracter(128,'o');
-//	generar_bitacora(7);
-//	escribir_en_bitacora(7,"HOLA GIL");
+	printf("Checkpoint 4\n");
+	agregarCaracter(6,'B');
+	agregarCaracter(328, 'o');
+	eliminarCaracter(128,'o');
+	generar_bitacora(7);
+	escribir_en_bitacora(7,"HOLA GIL");
 
 	puts("CUMBIA 420 PA LO NEGRO\n");
 	//Para el manejo de mensajes:
@@ -119,23 +304,6 @@ void* atender_mensaje(int cliente){
 //	free(paquete);
 }
 
-int string_to_int(char* palabra)
-{
-	int ret;
-	if(strlen(palabra)==3)
-	{
-		ret= (palabra[0]-'0')*100+(palabra[1]-'0')*10+palabra[2]-'0';
-	}
-	if(strlen(palabra)==2)
-	{
-		 ret= (palabra[0]-'0')*10+palabra[1]-'0';
-	}
-	else
-	{
-		ret=palabra[0]-'0';
-	}
-	return ret;
-}
 
 void inicializar_carpetas(){
 	//Se inicializan las carpetas FILES y BITACORAS
@@ -506,8 +674,7 @@ void escribirEnBloque(int cantidad, char caracter, char* rutita){
 	else
 	{
 		//Si entras al else, ya existe un bloque en uso, entonces terminas de llenar ese bloque y vas a otro
-
-		bloqueAUsar = atoi(bloquesUsados[cantBloques -1]);//atoi ==> convierte un array a int ==> Agarras el ultimo bloque que llega del metadata y lo transformas a int
+		bloqueAUsar = string_to_int(bloquesUsados[cantBloques -1]);//atoi ==> convierte un array a int ==> Agarras el ultimo bloque que llega del metadata y lo transformas a int
 		//Con esto basicamente accedes al bloque directamente
 
 		// Este for (el de int j) lo que hace es escribir la cantidad de letras hasta llenar ese bloque, si lo llena y le falta
@@ -648,7 +815,16 @@ void crear_metadata(char* archivo, char* valor){
 		return;
 	}
 
-	metadata_fd = fopen(ruta_metadata, "w");
+	metadata_fd = fopen(ruta_metadata, "w+");
+	char* md= string_new();
+	string_append(&md,"echo -n " );
+	string_append(&md,"");
+	string_append(&md," |md5sum");
+	string_append(&md," > " );
+	string_append(&md,ruta_metadata);
+	system(md);
+	char* mfive=malloc(33);
+	mfive=fgets(mfive,33,metadata_fd);
 	t_config* metadata_config = malloc(sizeof(t_config));
 	metadata_config->path = ruta_metadata;
 	metadata_config->properties = dictionary_create();
@@ -657,10 +833,11 @@ void crear_metadata(char* archivo, char* valor){
 	dictionary_put(metadata_config->properties, "BLOCK_COUNT", string_itoa(0));
 	dictionary_put(metadata_config->properties, "BLOCKS", "[]");
 	dictionary_put(metadata_config->properties, "CARACTER_LLENADO", valor);
-	dictionary_put(metadata_config->properties, "MD5", string_itoa(0));
+	dictionary_put(metadata_config->properties, "MD5", mfive);
 	//FALTA MD5!
 
 	config_save(metadata_config);
+	free(mfive);
 }
 
 void actualizar_metadata(char* valorBlocks, char* valorSize, char* valorBlockCount, char* ruta, char* caracter){
@@ -671,9 +848,28 @@ void actualizar_metadata(char* valorBlocks, char* valorSize, char* valorBlockCou
 	dictionary_put(metadata_config->properties, "SIZE", valorSize);
 	dictionary_put(metadata_config->properties, "BLOCK_COUNT", valorBlockCount);
 	dictionary_put(metadata_config->properties, "BLOCKS", valorBlocks);
-	dictionary_put(metadata_config->properties, "CARACTER_LLENADO", caracter);
-
+	dictionary_put(metadata_config->properties,"CARACTER_LLENADO", caracter);
+	char** calculo_md=string_get_string_as_array(valorBlocks);
+	char* valor_md=string_new();
+	for(int m=0;calculo_md[m]!=NULL;m++)
+	{
+		string_append(&valor_md, calculo_md[m]);
+	}
+	FILE* metadata_fd=fopen(ruta,"w+");
+	char* md= string_new();
+	string_append(&md,"echo -n " );
+	string_append(&md,valor_md);
+	string_append(&md," |md5sum");
+	string_append(&md," > " );
+	string_append(&md,ruta);
+	system(md);
+	char* mfive=malloc(33);
+	mfive=fgets(mfive,33,metadata_fd);
+	dictionary_put(metadata_config->properties, "MD5",mfive );
 	config_save(metadata_config);
+	free(mfive);
+
+
 }
 
 void actualizar_bitacora(char* valorBlocks, char* valorSize, char* valorBlockCount, char* ruta){
