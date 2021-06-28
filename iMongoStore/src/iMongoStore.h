@@ -131,7 +131,6 @@ void actualizar_metadata(char* valorBlocks, char* valorSize, char* valorBlockCou
 void actualizar_bitacora(char* valorBlocks, char* valorSize, char* valorBlockCount, char* ruta);
 void eliminarCaracter(int cantidad, char caracter);
 void eliminarEnBloque(int cantidad, char caracter, char* rutita);
-int existeEnArray(char** array, char contenido);
 _Bool esMetadataRecurso(char* rutini);
 
 #endif /* IMONGOSTORE_H_ */
