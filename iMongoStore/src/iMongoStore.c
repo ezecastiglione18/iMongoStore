@@ -9,7 +9,7 @@
  */
 
 #include "iMongoStore.h"
-
+#include <signal.h>
 //#define PUERTO "6667"
 #define BACKLOG 5			// Define cuantas conexiones vamos a mantener pendientes al mismo tiempo
 #define PACKAGESIZE 1024	// Define cual va a ser el size maximo del paquete a enviar
@@ -17,6 +17,8 @@
 #define TRIPULANTE 1
 #define PATOTA 1
 #define SABOTAJE 1
+#define USAR_RECURSOS 20
+#define ACTUALIZAR_BITACORA 21
 
 struct t_buffer {
     uint32_t size; // Tamaño del payload
@@ -35,10 +37,29 @@ struct t_bitarray{
 	bit_numbering_t mode;
 };
 
+typedef struct
+{
+	char tipo;
+	char recurso;
+	int cantidad;
+} recursos;
+
+typedef struct
+{
+	int id;
+	char* texto;
+} escrbir_bitacora;
+
+int blocks_sabot;
+
+
+
+
 #define PATH_CONFIG "/home/utnso/iMongoStore/iMongoStore/config/mongoStore.config"
 #define PATH_CONEXION "/home/utnso/tp-2021-1c-Cebollitas-subcampeon/libCompartida/config/conexiones.config"
 
 int main(void) {
+	signal(SIGUSR1,&interrupt_handler);
 	mongoStore_config = leer_config(PATH_CONFIG);
 	//conexion_config = leer_config(PATH_CONEXION);
 
@@ -60,6 +81,7 @@ int main(void) {
 	//int server_FS = iniciar_servidor(IP, puerto_mongostore);
 
 	bloques = config_get_int_value(mongoStore_config, "BLOCKS");
+	blocks_sabot=bloques;
 	tamanio_bloque = config_get_int_value(mongoStore_config, "BLOCK_SIZE");
 	tiempoSincro = config_get_int_value(mongoStore_config, "TIEMPO_SINCRONIZACION");
 
@@ -79,29 +101,296 @@ int main(void) {
 		inicializar_bloques();
 		crear_archivo_files();
 	}
-//	Operaciones de prueba que andan
+////	Operaciones de prueba que andan
 	agregarCaracter(3, 'o');
-
+//
 	printf("Checkpoint 4\n");
 	agregarCaracter(6,'B');
-	agregarCaracter(328, 'o');
-//	eliminarCaracter(128,'o');
+	agregarCaracter(9, 'o');
+	while(1)
+	{
+		puts("agrego");
+		agregarCaracter(9, 'o');
+		sleep(5);
+	}
+	//arreglar_sabotaje();
 	generar_bitacora(7);
+	escribir_en_bitacora(7,"HOLA GIL");
 
 	puts("CUMBIA 420 PA LO NEGRO\n");
-	//Para el manejo de mensajes:
-//	while(1)
-//	{
-//		int cliente = esperar_cliente(server_FS);
-//		if(cliente < 0){
-//			printf("No se pudo establecer la conexion");
-//			exit(1);
-//		}
-//		log_info(logger, "Se conecto el modulo Discordiador");
-//		pthread_t hilo;
-//		pthread_create(&hilo, NULL, (void* )atender_mensaje(cliente), NULL);
-//	}
+//LEVANTAMOS SERVER Y ATENDEMOS TRIPULANTES
+	int server_fs=crear_server("8667","127.0.0.1");
+	int socketTripulante= esperar_cliente(server_fs, 10);
+	while(1)
+	{
+		if(socketTripulante!=-1)
+		{
+			pthread_t hiloTripulante;
+			pthread_create(&hiloTripulante,NULL,atender_mensaje,socketTripulante);
+		}
+
+	}
 	return EXIT_SUCCESS;
+}
+
+
+int string_to_int(char* palabra)
+{
+	int ret;
+	if(strlen(palabra)==3)
+	{
+		ret= (palabra[0]-'0')*100+(palabra[1]-'0')*10+palabra[2]-'0';
+	}
+	if(strlen(palabra)==2)
+	{
+		 ret= (palabra[0]-'0')*10+palabra[1]-'0';
+	}
+	else
+	{
+		ret=palabra[0]-'0';
+	}
+	return ret;
+}
+int caracteres_en_bloque(int bl)
+{
+	return 0;
+}
+
+void validar_y_arreglar_file(char* rutinni)
+{
+	t_config* config_o2 = leer_config(rutinni);
+	int tamanoSize = config_get_int_value(config_o2, "SIZE");
+	char** bloquesOcupados = config_get_array_value(config_o2, "BLOCKS");
+	int countBloques = config_get_int_value(config_o2, "BLOCK_COUNT");
+	char* caracter =config_get_string_value(config_o2, "CARACTER_LLENADO");
+	char* MD=config_get_string_value(config_o2,"MD5");
+	int sizeCorrecto;
+	char character=caracter[0];
+	switch(character)
+	{
+	 case 'O':
+
+		sizeCorrecto=size_o;
+		break;
+
+	case 'o':
+
+		sizeCorrecto=size_o;
+		break;
+
+	case 'B':
+
+		sizeCorrecto=size_b;
+		break;
+
+	case 'b':
+
+		sizeCorrecto=size_b;
+		break;
+
+	case 'C':
+
+		sizeCorrecto=size_c;
+		break;
+
+	case 'c':
+
+		sizeCorrecto=size_c;
+		break;
+
+	}
+	if(tamanoSize!=sizeCorrecto)
+	{
+		tamanoSize=sizeCorrecto;
+		char* bloquesBienOcupados=string_new();
+		string_append(&bloquesBienOcupados, "[");
+
+		//Armado del array con los bloques todavia ocupados
+
+			//Se manda la lista con los bloques que quedaron
+			for(int j = 0; j < (countBloques); j++){
+				if(j==0)
+				{
+				 string_append(&bloquesBienOcupados, bloquesOcupados[j]);
+				}
+				else
+				{
+				string_append(&bloquesBienOcupados, ",");
+				string_append(&bloquesBienOcupados, bloquesOcupados[j]);
+				}
+			}
+			string_append(&bloquesBienOcupados, "]");
+		actualizar_metadata(bloquesBienOcupados,string_itoa(tamanoSize),string_itoa(countBloques),rutinni,caracter);
+	}
+	int cantidadReal;
+	for(cantidadReal=0; bloquesOcupados[cantidadReal]!=NULL; cantidadReal++);
+	if(countBloques!=cantidadReal)
+	{
+		countBloques=cantidadReal;
+		char* bloquesBienOcupados=string_new();
+		string_append(&bloquesBienOcupados, "[");
+
+		//Armado del array con los bloques todavia ocupados
+
+			//Se manda la lista con los bloques que quedaron
+			for(int j = 0; j < (countBloques); j++){
+				if(j==0)
+				{
+				 string_append(&bloquesBienOcupados, bloquesOcupados[j]);
+				}
+				else
+				{
+				string_append(&bloquesBienOcupados, ",");
+				string_append(&bloquesBienOcupados, bloquesOcupados[j]);
+				}
+			}
+			string_append(&bloquesBienOcupados, "]");
+		actualizar_metadata(bloquesBienOcupados,string_itoa(tamanoSize),string_itoa(countBloques),rutinni,caracter);
+	}
+	char* valor_md=string_new();
+	for(int m=0;bloquesOcupados[m]!=NULL;m++)
+	{
+		string_append(&valor_md, bloquesOcupados[m]);
+	}
+
+	FILE* mf=fopen("/home/utnso/md5.txt","w+");
+	char* md= string_new();
+	string_append(&md,"echo -n " );
+	string_append(&md,valor_md);
+	string_append(&md," |md5sum");
+	string_append(&md," > " );
+	string_append(&md,"/home/utnso/md5.txt");
+	system(md);
+	char* mfive=malloc(33);
+	mfive=fgets(mfive,33,mf);
+	fclose(mf);
+	if(!string_equals_ignore_case(MD,mfive))
+	{
+		for(int c=0; bloquesOcupados[c]!=NULL;c++)
+		{
+		bitarray_clean_bit(bitmap,string_to_int(bloquesOcupados[c]));
+		}
+		actualizar_metadata("[]","0","0",rutinni,caracter);
+		agregarCaracter(tamanoSize,character);
+	}
+	free(mfive);
+}
+void agregar_a_lista(char*ruta,t_list* blocks_used)
+{
+	t_config* obtener_blocks=leer_config(ruta);
+	char** bloquecitos=config_get_array_value(obtener_blocks,"BLOCKS");
+	for(int bloq=0;bloquecitos[bloq]!=NULL;bloq++)
+	{
+
+		list_add(blocks_used,(int)string_to_int(bloquecitos[bloq]));
+	}
+}
+void agregar_blocks_bitacoras(t_list* blocks_used)
+{
+	char* ruta_bita=string_new();
+	string_append(&ruta_bita,"/Files/Bitacoras/Tripulante");
+	int tripulante=1;
+
+	while(verificar_existencia(ruta_bita)==1)
+	{
+		agregar_a_lista(ruta_bita,blocks_used);
+		tripulante++;
+		ruta_bita=string_substring_until(ruta_bita,strlen(punto_montaje)+strlen("/Files/Bitacoras/Tripulante"));
+		string_append(&ruta_bita,string_itoa(tripulante));
+		string_append(&ruta_bita,".ims");
+	}
+
+}
+void agregar_blocks_recursos(t_list* blocks_used)
+{
+	char* ruta_oxigeno=string_new();
+	string_append(&ruta_oxigeno,punto_montaje);
+	string_append(&ruta_oxigeno,"/Files/Oxigeno.ims");
+	agregar_a_lista(ruta_oxigeno,blocks_used);
+	char* ruta_basura=string_new();
+	string_append(&ruta_basura,punto_montaje);
+	string_append(&ruta_basura,"/Files/Basura.ims");
+	agregar_a_lista(ruta_basura,blocks_used);
+	char* ruta_comida=string_new();
+	string_append(&ruta_comida,punto_montaje);
+	string_append(&ruta_comida,"/Files/Comida.ims");
+	agregar_a_lista(ruta_comida,blocks_used);
+
+
+}
+
+_Bool esElMsmoBit(int t,  int b)
+{
+	return t==b;
+}
+void arreglar_bitMap()
+{
+	t_list* blocks_used=list_create();
+	agregar_blocks_bitacoras(blocks_used);
+	agregar_blocks_recursos(blocks_used);
+	int bit_a_comparar;
+	_Bool mismoBit(void* elemento)
+	{
+		return esElMsmoBit(bit_a_comparar,(int)elemento);
+	}
+	for(int bit=0; bit<bloques;bit++)
+	{
+		bit_a_comparar=bit;
+		if(list_find(blocks_used,mismoBit)!=0)
+		{
+			bitarray_set_bit(bitmap,bit);
+		}
+		else
+		{
+			bitarray_clean_bit(bitmap,bit);
+		}
+	}
+
+	list_destroy(blocks_used);
+}
+
+void arreglar_blocks()
+{
+
+}
+
+void arreglar_sabotaje(void)
+{
+	char* ruta_oxigeno=string_new();
+	string_append(&ruta_oxigeno,punto_montaje);
+	string_append(&ruta_oxigeno,"/Files/Oxigeno.ims");
+	validar_y_arreglar_file(ruta_oxigeno);
+	char* ruta_basura=string_new();
+	string_append(&ruta_basura,punto_montaje);
+	string_append(&ruta_basura,"/Files/Basura.ims");
+	validar_y_arreglar_file(ruta_basura);
+	char* ruta_comida=string_new();
+	string_append(&ruta_comida,punto_montaje);
+	string_append(&ruta_comida,"/Files/Comida.ims");
+	validar_y_arreglar_file(ruta_comida);
+	arreglar_bitMap();
+	arreglar_blocks();
+}
+void interrupt_handler(int signal)
+{
+	printf("vanis bien wachin");
+	/*
+	 * aca tiramos un conectar al discordiador
+	 * acale mandamos la posicion del sabotaje
+	 * esperamos el mensaje de protocolo fsk
+	 *
+	 * */
+	char** pocicion_sabotaje=config_get_array_value(mongoStore_config,"POSICIONES_SABOTAJE");
+	//char* a mandar al discordaidor
+	char* posicion_mandar=pocicion_sabotaje[sabotaje_actual];
+	sabotaje_actual++;
+
+// aca arregla el sabotaje
+	arreglar_sabotaje();
+	printf("hola GILL");
+// aca tendria que mandar a discordiador que se arreglo
+
+
 }
 
 void* atender_mensaje(int cliente){
@@ -213,6 +502,22 @@ void inicializar_bloques(){
 	memcpy(copiaBlock, block, res); //ACA ESTA EL PROBLEMA
 
 //SINCRONIZACION ==> Chequear!
+//	while(1){
+//		sleep(tiempoSincro);
+//		pthread_mutex_lock(&mutexEscrituraBloques);
+//		memcpy(block,copiaBlock,res);
+//		pthread_mutex_unlock(&mutexEscrituraBloques);
+//
+//		int resultadoSincro = msync(block, res, MS_SYNC);
+//
+//		if(resultadoSincro == -1){
+//			log_error(logger, "Fallo en la sincronizacion con el bloque");
+//		}
+//		else
+//		{
+//			log_error(logger, "Sincronizacion exitosa con el bloque");
+//		}
+//	}
 
 	close(fd);
 	return;
@@ -349,7 +654,7 @@ void eliminarEnBloque(int cantidad, char caracter, char* rutita){
 	//Armado del array con los bloques todavia ocupados
 
 	//Se manda la lista con los bloques que quedaron
-	for(int j = 0; j < cantBloques - 1; j++){
+	for(int j = 0; j < cantBloques ; j++){
 		if(j == 0){
 			string_append(&bloquesNuevosPostBorrado, bloquesUsados[j]);
 		}
@@ -386,19 +691,33 @@ void eliminarEnBloque(int cantidad, char caracter, char* rutita){
 	log_info(logger, "Ya se consumieron todos los recursos posibles");
 }
 
+
+int existeEnArray(char** array, char contenido){
+	int existe = 0;
+	for(int i = 0; i < sizeof(array); i++){
+		if(array[i] == string_itoa(contenido)){
+			existe = 1;
+		}
+	}
+	return existe;
+}
+
 void escribirEnBloque(int cantidad, char caracter, char* rutita){
 	bloquesDelSistema = bloques;
 
 	//Se llama config_o2 porque originalmente estaba para Oxigeno.ims, pero ahora es global (el nombre no importa)
 	//Para obtener la data directamente del metadata, hacemos:
-	t_config* config_o2 = config_create(rutita);
+	t_config* config_o2 = leer_config(rutita);
 	int cantidadDeCaracteresEscritas = config_get_int_value(config_o2, "SIZE");
 
 	//La info sobre los bloques llenados con ese caracter la averiguas con bloquesUsados
-	char** bloquesUsados = config_get_array_value(config_o2, "BLOCKS");
+	 char** bloquesUsados = config_get_array_value(config_o2, "BLOCKS");
 	int cantBloques = config_get_int_value(config_o2, "BLOCK_COUNT");
 
 	char* caracterLlenado;
+	if(esMetadataRecurso(rutita)){
+		caracterLlenado = config_get_string_value(config_o2, "CARACTER_LLENADO");
+	}
 
 	//Cantidad de caracteres escritos
 	int cantidadEscrita = 0;
@@ -457,7 +776,8 @@ void escribirEnBloque(int cantidad, char caracter, char* rutita){
 	else
 	{
 		//Si entras al else, ya existe un bloque en uso, entonces terminas de llenar ese bloque y vas a otro
-		bloqueAUsar = string_to_int(bloquesUsados[cantBloques -1]);
+		bloqueAUsar = string_to_int(bloquesUsados[cantBloques -1]);//atoi ==> convierte un array a int ==> Agarras el ultimo bloque que llega del metadata y lo transformas a int
+		//Con esto basicamente accedes al bloque directamente
 
 		// Este for (el de int j) lo que hace es escribir la cantidad de letras hasta llenar ese bloque, si lo llena y le falta
 		// caracteres, va al otro for (el de int i) a buscar el proximo bloque libre para seguir llenando
@@ -511,14 +831,13 @@ void escribirEnBloque(int cantidad, char caracter, char* rutita){
 
 		//Actualizamos metadata o la bitacora
 		if(esMetadataRecurso(rutita)){
-			caracterLlenado = config_get_string_value(config_o2, "CARACTER_LLENADO");
 			actualizar_metadata(actualizarBloques, actualizarSize, actualizarCantidad, rutita, caracterLlenado);
 		}
 		else
 		{
 			actualizar_bitacora(actualizarBloques, actualizarSize, actualizarCantidad, rutita);
 		}
-	free(config_o2);
+
 }
 
 
@@ -550,6 +869,9 @@ void generar_bitacora(int idTripulante){
 	dictionary_put(bitacora_config->properties, "BLOCKS", "[]");
 
 	config_save(bitacora_config);
+
+	//fclose(metadata_fd);
+	free(bitacora_config);
 }
 
 
@@ -617,9 +939,11 @@ void crear_metadata(char* archivo, char* valor){
 	dictionary_put(metadata_config->properties, "BLOCKS", "[]");
 	dictionary_put(metadata_config->properties, "CARACTER_LLENADO", valor);
 	dictionary_put(metadata_config->properties, "MD5", mfive);
+	//FALTA MD5!
 
 	config_save(metadata_config);
 	free(mfive);
+	fclose(metadata_fd);
 }
 
 void actualizar_metadata(char* valorBlocks, char* valorSize, char* valorBlockCount, char* ruta, char* caracter){
@@ -631,6 +955,18 @@ void actualizar_metadata(char* valorBlocks, char* valorSize, char* valorBlockCou
 	dictionary_put(metadata_config->properties, "BLOCK_COUNT", valorBlockCount);
 	dictionary_put(metadata_config->properties, "BLOCKS", valorBlocks);
 	dictionary_put(metadata_config->properties,"CARACTER_LLENADO", caracter);
+	if(string_equals_ignore_case(caracter,"C"))
+	{
+		size_c=string_to_int(valorSize);
+	}
+	if(string_equals_ignore_case(caracter,"B"))
+	{
+		size_b=atoi(valorSize);
+	}
+	if(string_equals_ignore_case(caracter,"O"))
+	{
+		size_o=atoi(valorSize);
+	}
 	char** calculo_md=string_get_string_as_array(valorBlocks);
 	char* valor_md=string_new();
 	for(int m=0;calculo_md[m]!=NULL;m++)
@@ -650,12 +986,13 @@ void actualizar_metadata(char* valorBlocks, char* valorSize, char* valorBlockCou
 	dictionary_put(metadata_config->properties, "MD5",mfive );
 	config_save(metadata_config);
 	free(mfive);
+	fclose(metadata_fd);
 	free(metadata_config);
-
 
 }
 
 void actualizar_bitacora(char* valorBlocks, char* valorSize, char* valorBlockCount, char* ruta){
+	FILE* bita=fopen(ruta,"w");
 	t_config* bitacora_config = malloc(sizeof(t_config));
 	bitacora_config->path = ruta;
 	bitacora_config->properties = dictionary_create();
@@ -665,7 +1002,9 @@ void actualizar_bitacora(char* valorBlocks, char* valorSize, char* valorBlockCou
 	dictionary_put(bitacora_config->properties, "BLOCKS", valorBlocks);
 
 	config_save(bitacora_config);
+	fclose(bita);
 	free(bitacora_config);
+
 }
 
 int verificar_existencia(char* nombre_archivo){
@@ -724,193 +1063,6 @@ void agregarCaracter(int cantidad, char caracter){
 	free(rutita);
 }
 
-int string_to_int(char* palabra)
-{
-	int ret;
-	if(strlen(palabra)==3)
-	{
-		ret= (palabra[0]-'0')*100+(palabra[1]-'0')*10+palabra[2]-'0';
-	}
-	if(strlen(palabra)==2)
-	{
-		 ret= (palabra[0]-'0')*10+palabra[1]-'0';
-	}
-	else
-	{
-		ret=palabra[0]-'0';
-	}
-	return ret;
-}
-int caracteres_en_bloque(int bl)
-{
-	return 0;
-}
-
-void validar_y_arreglar_file(char* rutinni)
-{
-	t_config* config_o2 = leer_config(rutinni);
-	int tamanoSize = config_get_int_value(config_o2, "SIZE");
-	char** bloquesOcupados = config_get_array_value(config_o2, "BLOCKS");
-	int countBloques = config_get_int_value(config_o2, "BLOCK_COUNT");
-	char* caracter =config_get_string_value(config_o2, "CARACTER");
-	int sizeCorrecto= (countBloques-1)*tamanio_bloque+caracteres_en_bloque(string_to_int(bloquesOcupados[countBloques-1]));
-	if(tamanoSize!=sizeCorrecto)
-	{
-		tamanoSize=sizeCorrecto;
-		char* bloquesBienOcupados=string_new();
-		string_append(&bloquesBienOcupados, "[");
-
-		//Armado del array con los bloques todavia ocupados
-
-			//Se manda la lista con los bloques que quedaron
-			for(int j = 0; j < (countBloques-1); j++){
-				if(j==0)
-				{
-				 string_append(&bloquesBienOcupados, bloquesOcupados[j]);
-				}
-				else
-				{
-				string_append(&bloquesBienOcupados, ",");
-				string_append(&bloquesBienOcupados, bloquesOcupados[j]);
-				}
-			}
-			string_append(&bloquesBienOcupados, "]");
-		actualizar_metadata(bloquesBienOcupados,string_itoa(tamanoSize),string_itoa(countBloques),rutinni,caracter);
-	}
-	int cantidadReal;
-	for(cantidadReal=0; bloquesOcupados[cantidadReal]!=NULL; cantidadReal++);
-	if(countBloques!=cantidadReal)
-	{
-		countBloques=cantidadReal;
-		char* bloquesBienOcupados=string_new();
-		string_append(&bloquesBienOcupados, "[");
-
-		//Armado del array con los bloques todavia ocupados
-
-			//Se manda la lista con los bloques que quedaron
-			for(int j = 0; j < (countBloques-1); j++){
-				if(j==0)
-				{
-				 string_append(&bloquesBienOcupados, bloquesOcupados[j]);
-				}
-				else
-				{
-				string_append(&bloquesBienOcupados, ",");
-				string_append(&bloquesBienOcupados, bloquesOcupados[j]);
-				}
-			}
-			string_append(&bloquesBienOcupados, "]");
-		actualizar_metadata(bloquesBienOcupados,string_itoa(tamanoSize),string_itoa(countBloques),rutinni,caracter);
-	}
-	int auxiliar=0;
-	while(bloquesOcupados[auxiliar]!=NULL)
-	{
-		int bloqueRecorrido= string_to_int(bloquesOcupados[auxiliar]);
-		if(bloqueRecorrido<0 || bloqueRecorrido>=bloques)
-		{
-			break;
-		}
-		auxiliar++;
-	}
-	if(auxiliar<countBloques)
-	{
-		int caracteres_a_rescribir=(countBloques-auxiliar-1)*tamanio_bloque+(tamanoSize%tamanio_bloque);
-		char* bloquesBienOcupados=string_new();
-		string_append(&bloquesBienOcupados, "[");
-
-		//Armado del array con los bloques todavia ocupados
-
-			//Se manda la lista con los bloques que quedaron
-			for(int j = 0; j < auxiliar; j++){
-				if(j==0)
-				{
-				 string_append(&bloquesBienOcupados, bloquesOcupados[j]);
-				}
-				else
-				{
-				string_append(&bloquesBienOcupados, ",");
-				string_append(&bloquesBienOcupados, bloquesOcupados[j]);
-				}
-			}
-			string_append(&bloquesBienOcupados, "]");
-			actualizar_metadata(bloquesBienOcupados,string_itoa(tamanoSize-caracteres_a_rescribir),string_itoa(auxiliar),rutinni,caracter);
-			escribirEnBloque(caracteres_a_rescribir,(char)caracter,rutinni);
-	}
-
-}
-void agregar_a_lista(char*ruta,t_list* blocks_used)
-{
-	t_config* obtener_blocks=leer_config(ruta);
-	char** bloquecitos=config_get_array_value(obtener_blocks,"BLOCKS");
-	for(int bloq=0;bloquecitos[bloq]!=NULL;bloq++)
-	{
-		list_add(blocks_used,(void*)string_to_int(bloquecitos[bloq]));
-	}
-}
-void agregar_blocks_bitacoras(t_list* blocks_used)
-{
-	char* ruta_bita=string_new();
-	string_append(&ruta_bita,"/Files/Bitacoras/Tripulante");
-	int tripulante=1;
-
-	while(verificar_existencia(ruta_bita)==1)
-	{
-		agregar_a_lista(ruta_bita,blocks_used);
-		tripulante++;
-		ruta_bita=string_substring_until(ruta_bita,strlen(punto_montaje)+strlen("/Files/Bitacoras/Tripulante"));
-		string_append(&ruta_bita,string_itoa(tripulante));
-		string_append(&ruta_bita,".ims");
-	}
-
-}
-void agregar_blocks_recursos(t_list* blocks_used)
-{
-	char* ruta_oxigeno="";
-	string_append(&ruta_oxigeno,punto_montaje);
-	string_append(&ruta_oxigeno,"/Files/Oxigeno.ims");
-	agregar_a_lista(ruta_oxigeno,blocks_used);
-	char* ruta_basura="";
-	string_append(&ruta_basura,punto_montaje);
-	string_append(&ruta_basura,"/Files/Basura.ims");
-	agregar_a_lista(ruta_basura,blocks_used);
-	char* ruta_comida="";
-	string_append(&ruta_comida,punto_montaje);
-	string_append(&ruta_comida,"/Files/Comida.ims");
-	agregar_a_lista(ruta_comida,blocks_used);
-
-
-}
-
-_Bool esElMsmoBit(int t, int b)
-{
-	return t==b;
-}
-void arreglar_bitMap()
-{
-	list_create(blocks_used);
-	agregar_blocks_bitacoras(blocks_used);
-	agregar_blocks_recursos(blocks_used);
-	int bit_a_comparar;
-	_Bool mismoBit(void* elemento)
-	{
-		return esElMsmoBit(bit_a_comparar,(int)elemento);
-	}
-	for(int bit=0; bit<bitmap->size;bit++)
-	{
-		bit_a_comparar=bit;
-		if(list_find(blocks_used,mismoBit)!=0)
-		{
-			bitarray_set_bit(bitmap,bit);
-		}
-		else
-		{
-			bitarray_clean_bit(bitmap,bit);
-		}
-	}
-
-	list_destroy(blocks_used);
-}
-
 t_log* iniciar_logger(char* logger_path){
 	t_log *logger;
 	if((logger = log_create(logger_path, "cliente", 0, LOG_LEVEL_INFO)) == NULL){
@@ -921,7 +1073,7 @@ t_log* iniciar_logger(char* logger_path){
 }
 
 t_config* leer_config(char* config_path){
-	t_config* config;
+	t_config* config=malloc(sizeof(config));
 	if((config = config_create(config_path)) == NULL){
 		printf("No se pudo leer la config");
 		exit(2);
@@ -935,65 +1087,62 @@ _Bool esMetadataRecurso(char* rutini)
 			string_contains(rutini,"Comida");
 }
 
-//int crear_server(char* puerto,char* ip,int backlog){
+int crear_server(char* puerto,char* ip){
+
+	struct addrinfo hints;
+	struct addrinfo *serverInfo;
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;		// No importa si uso IPv4 o IPv6
+	hints.ai_flags = AI_PASSIVE;		// Asigna el address del localhost: 127.0.0.1
+	hints.ai_socktype = SOCK_STREAM;	// Indica que usaremos el protocolo TCP
+
+	getaddrinfo(NULL, puerto, &hints, &serverInfo);
+
+	/*for (p=servinfo; p != NULL; p = p->ai_next)
+   {
+       if ((socket_servidor = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1)
+            continue;
+
+        int activado = 1;
+        setsockopt(socket_servidor,SOL_SOCKET,SO_REUSEADDR,&activado,sizeof(activado));
+
+        if (bind(socket_servidor, p->ai_addr, p->ai_addrlen) == -1) {
+            close(socket_servidor);
+            continue;
+        }
+        break;
+    }*/
+
+	int listenningSocket;
+
+	listenningSocket = socket(serverInfo->ai_family, serverInfo->ai_socktype, serverInfo->ai_protocol);
+
+	bind(listenningSocket,serverInfo->ai_addr, serverInfo->ai_addrlen);
+	freeaddrinfo(serverInfo);
+	return listenningSocket;
+}
 //
-//	struct addrinfo hints;
-//	struct addrinfo *serverInfo;
-//
-//	memset(&hints, 0, sizeof(hints));
-//	hints.ai_family = AF_UNSPEC;		// No importa si uso IPv4 o IPv6
-//	hints.ai_flags = AI_PASSIVE;		// Asigna el address del localhost: 127.0.0.1
-//	hints.ai_socktype = SOCK_STREAM;	// Indica que usaremos el protocolo TCP
-//
-//	getaddrinfo(NULL, puerto, &hints, &serverInfo);
-//
-//	/*for (p=servinfo; p != NULL; p = p->ai_next)
-//    {
-//        if ((socket_servidor = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1)
-//            continue;
-//
-//        int activado = 1;
-//        setsockopt(socket_servidor,SOL_SOCKET,SO_REUSEADDR,&activado,sizeof(activado));
-//
-//        if (bind(socket_servidor, p->ai_addr, p->ai_addrlen) == -1) {
-//            close(socket_servidor);
-//            continue;
-//        }
-//        break;
-//    }*/
-//
-//	int listenningSocket;
-//
-//	listenningSocket = socket(serverInfo->ai_family, serverInfo->ai_socktype, serverInfo->ai_protocol);
-//
-//	bind(listenningSocket,serverInfo->ai_addr, serverInfo->ai_addrlen);
-//	freeaddrinfo(serverInfo);
-//
-//	listen(listenningSocket, backlog);
-//
-//	freeaddrinfo(serverInfo);
-//	return listenningSocket;
-//}
-//
-//int esperar_cliente(int socket_server){
-//		struct sockaddr_in addr;
-//		socklen_t addrlen = sizeof(addr);
-//
-//		int socket_cliente = accept(socket_server, (struct sockaddr *) &addr, &addrlen);
-//
-//
-//		printf("Cliente conectado. Esperando mensajes:\n");
-//	/*
-//		while (status != 0){
-//			status = recv(socketCliente, (void*) package, PACKAGESIZE, 0);
-//			if (status != 0) printf("%s", package);
-//
-//		}
-//	*/
-//		return socket_cliente;
-//
-//
-//}
+int esperar_cliente(int socket_server, int backlog){
+
+		listen(socket_server,backlog);
+		struct sockaddr_in addr;
+		socklen_t addrlen = sizeof(addr);
+
+		int socket_cliente = accept(socket_server, (struct sockaddr *) &addr, &addrlen);
+
+
+		printf("Cliente conectado. Esperando mensajes:\n");
+	/*
+		while (status != 0){
+		status = recv(socketCliente, (void*) package, PACKAGESIZE, 0);
+		if (status != 0) printf("%s", package);
+
+		}
+	*/
+		return socket_cliente;
+
+}
 //
 //void terminar_servidor(int socket_cliente){
 //	close(socket_cliente);

@@ -105,6 +105,10 @@ char* ruta_metadata;
 void* copiaBlock;
 
 int bloquesDelSistema;
+int sabotaje_actual=1;
+int size_o=0;
+int size_c=0;
+int size_b=0;
 
 pthread_mutex_t mutexEscrituraBloques;
 
@@ -122,7 +126,7 @@ int verificar_existencia(char* nombre_archivo);
 void leer_files();
 void inicializar_bloques();
 //INICIALIZACION FILE SYSTEM
-
+void interrupt_handler(int signal);
 void generar_bitacora(int idTripulante);
 void* atender_mensaje(int cliente);
 void agregarCaracter(int cantidad, char caracter);
@@ -131,6 +135,7 @@ void actualizar_metadata(char* valorBlocks, char* valorSize, char* valorBlockCou
 void actualizar_bitacora(char* valorBlocks, char* valorSize, char* valorBlockCount, char* ruta);
 void eliminarCaracter(int cantidad, char caracter);
 void eliminarEnBloque(int cantidad, char caracter, char* rutita);
+int existeEnArray(char** array, char contenido);
 _Bool esMetadataRecurso(char* rutini);
 
 #endif /* IMONGOSTORE_H_ */
