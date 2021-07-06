@@ -51,9 +51,56 @@ typedef struct
 } escrbir_bitacora;
 
 int blocks_sabot;
+void restaurar_file_system()
+{
 
+}
 
+char* leer_bloque(int nuro_bloque)
+{
+	char* retorno=string_new();
 
+	memcpy(retorno,(copiaBlock+nuro_bloque*tamanio_bloque),tamanio_bloque);
+	return retorno;
+}
+
+char* leer_resto_bloque(int nuro_bloque,int resto)
+{
+	char* retorno=string_new();
+
+	memcpy(retorno,(copiaBlock+nuro_bloque*tamanio_bloque),resto);
+	return retorno;
+}
+
+char* obtener_bitacora(int id_trip)
+{
+	char* bitacora=string_new();
+
+	char* ruta_bita=string_new();
+	string_append(&ruta_bita,punto_montaje);
+	string_append(&ruta_bita,"/Files/Bitacoras/Tripulante");
+	string_append(&ruta_bita,string_itoa(id_trip));
+	string_append(&ruta_bita,".ims");
+	t_config* bita= config_create(ruta_bita);
+	int zise=config_get_int_value(bita,"SIZE");
+	char** bloquecitos=config_get_array_value(bita, "BLOCKS");
+	int count_block_bita=config_get_int_value(bita,"BLOCK_COUNT");
+	for(int auxilio=0; auxilio<count_block_bita ;auxilio++)
+	{
+		char* leido=string_new();
+		if(zise%tamanio_bloque!=0 && auxilio==(count_block_bita-1))
+		{
+			leido=leer_resto_bloque(atoi(bloquecitos[auxilio]),zise%tamanio_bloque);
+		}
+		else
+		{
+			leido=leer_bloque(atoi(bloquecitos[auxilio]));
+		}
+		string_append(&bitacora,leido);
+	}
+
+	return bitacora;
+}
 
 #define PATH_CONFIG "/home/utnso/iMongoStore/iMongoStore/config/mongoStore.config"
 #define PATH_CONEXION "/home/utnso/tp-2021-1c-Cebollitas-subcampeon/libCompartida/config/conexiones.config"
@@ -101,25 +148,27 @@ int main(void) {
 		inicializar_bloques();
 		crear_archivo_files();
 	}
+	else
+	{
+		restaurar_file_system();
+	}
 ////	Operaciones de prueba que andan
 	agregarCaracter(3, 'o');
 //
 	printf("Checkpoint 4\n");
 	agregarCaracter(6,'B');
 	agregarCaracter(9, 'o');
-	while(1)
-	{
-		puts("agrego");
-		agregarCaracter(9, 'o');
-		sleep(5);
-	}
+
 	//arreglar_sabotaje();
 	generar_bitacora(7);
 	escribir_en_bitacora(7,"HOLA GIL");
+	char* mostrar=obtener_bitacora(7);
+	printf("%s  \n",mostrar);
+
 
 	puts("CUMBIA 420 PA LO NEGRO\n");
 //LEVANTAMOS SERVER Y ATENDEMOS TRIPULANTES
-	int server_fs=crear_server("8667","127.0.0.1");
+	/*int server_fs=crear_server("8667","127.0.0.1");
 	int socketTripulante= esperar_cliente(server_fs, 10);
 	while(1)
 	{
@@ -129,7 +178,7 @@ int main(void) {
 			pthread_create(&hiloTripulante,NULL,atender_mensaje,socketTripulante);
 		}
 
-	}
+	}*/
 	return EXIT_SUCCESS;
 }
 
@@ -288,8 +337,11 @@ void agregar_a_lista(char*ruta,t_list* blocks_used)
 void agregar_blocks_bitacoras(t_list* blocks_used)
 {
 	char* ruta_bita=string_new();
+	string_append(&ruta_bita,punto_montaje);
 	string_append(&ruta_bita,"/Files/Bitacoras/Tripulante");
 	int tripulante=1;
+	string_append(&ruta_bita,string_itoa(tripulante));
+	string_append(&ruta_bita,".ims");
 
 	while(verificar_existencia(ruta_bita)==1)
 	{
